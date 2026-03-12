@@ -30,5 +30,5 @@ features:
 
 # Route selection settings
 route:
-  interval_meters: 10
+  interval_meters: 5
   output_file: "route_coords.csv"
