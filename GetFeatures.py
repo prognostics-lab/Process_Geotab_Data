@@ -14,7 +14,7 @@ class GetFeatures:
     road type, slope, weather, and aggregated EV variables.
     """
 
-    def __init__(self, config_path='config.yml', trip_date=None):
+    def __init__(self, config_path='config.yml', trip_date=None, input_file=None):
         with open(config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
 
@@ -23,7 +23,7 @@ class GetFeatures:
             processed = os.path.join(processed, trip_date)
         self.processed_path = processed
 
-        route_file = self.config['output_files']['route_vars']
+        route_file = input_file or self.config['output_files']['route_vars']
         self.route_vars_path = os.path.join(processed, route_file)
 
         feat_cfg = self.config.get('features', {})
@@ -48,8 +48,16 @@ class GetFeatures:
     # ── 1. load ────────────────────────────────────────────────────────
     def load(self):
         self.df = pd.read_csv(self.route_vars_path)
-        self.df['datetime'] = pd.to_datetime(self.df['datetime'])
-        self.df['Hour'] = self.df['datetime'].dt.hour
+        required = {'latitude', 'longitude'}
+        missing = required - set(self.df.columns)
+        if missing:
+            raise ValueError(f"Missing required columns: {missing}")
+        if 'datetime' in self.df.columns:
+            self.df['datetime'] = pd.to_datetime(self.df['datetime'])
+            self.df['Hour'] = self.df['datetime'].dt.hour
+        else:
+            from datetime import datetime, timezone
+            self.df['Hour'] = datetime.now(timezone.utc).hour
         print(f"Loaded {len(self.df)} points from {self.route_vars_path}")
         return self.df
 
@@ -164,8 +172,13 @@ class GetFeatures:
             print("  No WWO API key configured – skipping weather")
             return
 
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        if 'datetime' not in self.df.columns:
+            self.df['_weather_dt'] = now_utc
+
         try:
-            chunk_km = 50
+            chunk_km = 20
             max_km = self.df['Trip_distance'].max() / 1000
             n_chunks = max(1, int(np.ceil(max_km / chunk_km)))
             weather_data = []
@@ -177,7 +190,8 @@ class GetFeatures:
                 idx = (self.df['Trip_distance'] - mid_m).abs().idxmin()
                 lat = self.df.loc[idx, 'latitude']
                 lon = self.df.loc[idx, 'longitude']
-                dt = self.df.loc[idx, 'datetime']
+                dt_col = 'datetime' if 'datetime' in self.df.columns else '_weather_dt'
+                dt = pd.Timestamp(self.df.loc[idx, dt_col])
 
                 try:
                     r = requests.get(
@@ -223,36 +237,44 @@ class GetFeatures:
             self.df['OAT[DegC]_API'] = 25.0
             self.df['precipMM'] = 0.0
 
+        self.df.drop(columns='_weather_dt', errors='ignore', inplace=True)
+
     # ── 7. aggregate ──────────────────────────────────────────────────
     def aggregate(self):
+        # Always-present columns after processing
         agg = {
-            'Hour': 'last',
             'Trip_distance': 'last',
             'Delta_d': 'first',
-            'Hum': 'mean',
-            'OAT[DegC]_API': 'mean',
-            'precipMM': 'mean',
-            'Slope': 'mean',
-            'primary': 'max',
-            'residential': 'max',
-            'secondary': 'max',
-            'crossing': 'max',
-            'tertiary': 'max',
-            'give_way': 'max',
-            'Voltage': 'mean',
-            'Current': 'mean',
-            'Power': 'mean',
-            'SoC': 'mean',
         }
+
+        # Optional columns: include only if they exist in the dataframe
+        optional_last = ['Hour']
+        optional_mean = ['Hum', 'OAT[DegC]_API', 'precipMM', 'Slope',
+                         'Voltage', 'Current', 'Power', 'SoC']
+        optional_max = ['primary', 'residential', 'secondary',
+                        'crossing', 'tertiary', 'give_way']
+
+        for col in optional_last:
+            if col in self.df.columns:
+                agg[col] = 'last'
+        for col in optional_mean:
+            if col in self.df.columns:
+                agg[col] = 'mean'
+        for col in optional_max:
+            if col in self.df.columns:
+                agg[col] = 'max'
+
         result = self.df.groupby('segment_id', as_index=False).agg(agg)
         result = result[result['Delta_d'] > 0].reset_index(drop=True)
         result['segment_id'] = range(len(result))
 
-        col_order = ['segment_id', 'Hour', 'Trip_distance', 'Delta_d',
+        col_order = ['segment_id'] + [c for c in
+                     ['Hour', 'Trip_distance', 'Delta_d',
                       'Hum', 'OAT[DegC]_API', 'precipMM', 'Slope',
                       'primary', 'residential', 'secondary',
                       'crossing', 'tertiary', 'give_way',
                       'Voltage', 'Current', 'Power', 'SoC']
+                     if c in result.columns]
         self.segments_df = result[col_order]
         print(f"  Aggregated into {len(self.segments_df)} segments")
         return self.segments_df
