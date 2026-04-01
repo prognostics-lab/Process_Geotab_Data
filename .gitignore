@@ -208,3 +208,9 @@ __marimo__/
 
 processed_data/
 cache/
+*.pdf
+*.svg
+*.csv
+*.html
+*.png
+*.xlsx
