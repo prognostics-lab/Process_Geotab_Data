@@ -3,13 +3,13 @@
 # Input paths
 raw_data_path: "raw_data"
 files:
-  motor_status: "Reporte avanzado de estado de motor_20260310_083423.xlsx"
-  data_log: "Reporte por defecto de registro de datos y colisiones_20260310_082439.xlsx"
+  motor_status: "Reporte avanzado de estado de motor_20260313_074642.xlsx"
+  data_log: "Reporte por defecto de registro de datos y colisiones_20260313_074739.xlsx"
 
 # Time window filter (only process data within this range)
 time_window:
-  start: "2026-03-06 08:26:44.394"
-  end: "2026-03-06 10:21:37.000"
+  start: "2026-03-12 08:43:00.000"
+  end: "2026-03-12 10:44:00.000"
 
 # Maximum distance (meters) between consecutive GPS points.
 # Intermediate points are interpolated when the gap exceeds this value.
