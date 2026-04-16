@@ -250,7 +250,7 @@ class GetFeatures:
         # Optional columns: include only if they exist in the dataframe
         optional_last = ['Hour']
         optional_mean = ['Hum', 'OAT[DegC]_API', 'precipMM', 'Slope',
-                         'Voltage', 'Current', 'Power', 'SoC']
+                         'Voltage', 'Current', 'Power', 'Energy', 'SoC']
         optional_max = ['primary', 'residential', 'secondary',
                         'crossing', 'tertiary', 'give_way']
 
@@ -273,7 +273,7 @@ class GetFeatures:
                       'Hum', 'OAT[DegC]_API', 'precipMM', 'Slope',
                       'primary', 'residential', 'secondary',
                       'crossing', 'tertiary', 'give_way',
-                      'Voltage', 'Current', 'Power', 'SoC']
+                      'Voltage', 'Current', 'Power', 'Energy', 'SoC']
                      if c in result.columns]
         self.segments_df = result[col_order]
         print(f"  Aggregated into {len(self.segments_df)} segments")

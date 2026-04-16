@@ -72,11 +72,15 @@ class GeotabProcessor:
         # Calculate Current = Power / Voltage
         result['Current'] = result['Power'] / result['Voltage']
 
+        # Calculate cumulative Energy in Wh (trapezoidal integration of Power over time)
+        dt_s = result['datetime'].diff().dt.total_seconds().fillna(0)
+        result['Energy'] = (result['Power'] * dt_s / 3600).cumsum()
+
         # Add provenance column
         result['Procedencia'] = 'AA'
 
         # Reorder columns
-        self.vars_df = result[['datetime', 'Voltage', 'Current', 'Power', 'SoC', 'Procedencia']].reset_index(drop=True)
+        self.vars_df = result[['datetime', 'Voltage', 'Current', 'Power', 'Energy', 'SoC', 'Procedencia']].reset_index(drop=True)
 
         print(f"vars: {self.vars_df.shape[0]} rows")
         return self.vars_df
@@ -125,7 +129,7 @@ class GeotabProcessor:
                                tolerance=pd.Timedelta('30s'))
 
         # Linear interpolation for numeric columns
-        for col in ['Voltage', 'Current', 'Power', 'SoC']:
+        for col in ['Voltage', 'Current', 'Power', 'Energy', 'SoC']:
             merged[col] = merged[col].interpolate(method='linear', limit_direction='both')
 
         # Forward/backward fill for categorical column
@@ -151,7 +155,7 @@ class GeotabProcessor:
 
         max_gap = self.config.get('densify_max_gap_meters', 100)
         df = self.route_vars_df.copy()
-        numeric_cols = ['Voltage', 'Current', 'Power', 'SoC']
+        numeric_cols = ['Voltage', 'Current', 'Power', 'Energy', 'SoC']
         original_len = len(df)
         rows = []
 
